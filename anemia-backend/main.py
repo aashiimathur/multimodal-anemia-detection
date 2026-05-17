@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 import numpy as np
 import joblib
 import tempfile
@@ -9,6 +9,8 @@ import pandas as pd
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import subprocess
+import cv2
+import json
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -18,6 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 clf = joblib.load("anemia_classifier.pkl")
+nail_clf = joblib.load("nail_anemia_classifier.pkl")
 le = joblib.load("label_encoder.pkl")
 hb_model = joblib.load("hb_model.pkl")
 
@@ -94,23 +97,144 @@ def extract_features(file_bytes):
 
     return features, jitter, shimmer, hnr, HBAI
 
+def extract_nail_features(image_path):
+
+    img = cv2.imread(image_path)
+
+    if img is None:
+        raise ValueError("Image not found")
+
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    img = cv2.resize(img, (200, 200))
+
+    # center crop
+    h, w, _ = img.shape
+
+    img = img[
+        int(h*0.15):int(h*0.85),
+        int(w*0.15):int(w*0.85)
+    ]
+
+    mean_r = np.mean(img[:,:,0])
+    mean_g = np.mean(img[:,:,1])
+    mean_b = np.mean(img[:,:,2])
+
+    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+
+    mean_h = np.mean(hsv[:,:,0])
+    mean_s = np.mean(hsv[:,:,1])
+    mean_v = np.mean(hsv[:,:,2])
+
+    std_r = np.std(img[:,:,0])
+
+    features = np.array([
+        mean_r,
+        mean_g,
+        mean_b,
+        mean_h,
+        mean_s,
+        mean_v,
+        std_r
+    ]).reshape(1, -1)
+
+    return features
+
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(
+    voice_file: UploadFile = File(...),
+    nail_file: UploadFile = File(None),
+    symptoms: str = Form("[]"),
+    previous_hb: str = Form("")
+):
 
-    file_bytes = await file.read()
-
-    features, jitter, shimmer, hnr, HBAI = extract_features(file_bytes)
-
+    # ---------------- Voice ----------------
+    voice_bytes = await voice_file.read()
+    symptoms_list = json.loads(symptoms)
+    features, jitter, shimmer, hnr, HBAI = extract_features(voice_bytes)
     pred = clf.predict(features)[0]
     label = le.inverse_transform([pred])[0]
-
     hb = hb_model.predict(features)[0]
-    confidence = float(np.max(clf.predict_proba(features)) * 100)
+    confidence = float(
+        np.max(clf.predict_proba(features)) * 100
+    )
+    # ---------------- Voice Risk ----------------
+    risk_score = int(((15 - hb) / 9) * 100)
+    risk_score = max(0, min(100, risk_score))
+
+    # ---------------- Nail + Symptoms ----------------
+    nail_risk = 0
+    if nail_file is not None:
+        nail_bytes = await nail_file.read()
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".jpg"
+        ) as tmp:
+            tmp.write(nail_bytes)
+            nail_path = tmp.name
+        nail_features = extract_nail_features(nail_path)
+        nail_prob = nail_clf.predict_proba(
+            nail_features
+        )[0][1]
+        nail_risk = nail_prob * 100
+        symptom_weights = {
+            "Fatigue": 20,
+            "Dizziness": 15,
+            "Pale Skin": 25,
+            "Headache": 10,
+            "Shortness of Breath": 30
+        }
+        symptom_risk = 0
+        for symptom in symptoms_list:
+            symptom_risk += symptom_weights.get(symptom, 0)
+        symptom_risk = min(symptom_risk, 100)
+        history_risk = 0
+
+        hb_trend = "No previous Hb provided"
+        if previous_hb != "":
+            try:
+                previous_hb = float(previous_hb)
+                difference = hb - previous_hb
+                # worsening
+                if difference < -1:
+                    history_risk = 30
+                    hb_trend = "Hemoglobin appears to have decreased compared to previous value."
+                # improving
+                elif difference > 1:
+                    history_risk = 5
+                    hb_trend = "Hemoglobin appears to have improved compared to previous value."
+                else:
+                    history_risk = 15
+                    hb_trend = "Hemoglobin appears relatively stable."
+            except:
+                history_risk = 0
+    # ---------------- Final Fusion ----------------
+    final_risk = (
+        risk_score * 0.5 +
+        nail_risk * 0.2 +
+        symptom_risk * 0.2 +
+        history_risk * 0.1
+    )
+    # ---------------- Overall ----------------
+    if final_risk < 30:
+        overall_risk = "Low"
+    elif final_risk < 60:
+        overall_risk = "Moderate"
+    else:
+        overall_risk = "High"
+    # ---------------- Return ----------------
 
     return {
         "label": label,
         "hb": float(hb),
         "confidence": confidence,
+        "nail_risk": float(nail_risk),
+        "symptom_risk": symptom_risk,
+        "symptoms_used": symptoms_list,
+        "history_risk": history_risk,
+        "hb_trend": hb_trend,
+        "final_risk": float(final_risk),
+        "overall_risk": overall_risk,
         "jitter": float(jitter),
         "shimmer": float(shimmer),
         "hnr": float(hnr),

@@ -138,3 +138,67 @@ audio {
 .placeholder {
   opacity: 0.6;
 }
+
+.nail-preview {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.nail-image {
+  width: 180px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 20px;
+  border: 2px solid #ffffff30;
+  margin-bottom: 10px;
+  box-shadow: 0 0 20px rgba(255,255,255,0.1);
+}
+
+.nail-card {
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.symptom-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.symptom-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+}
+
+.symptoms-used {
+  margin-top: 25px;
+}
+
+.symptom-badge {
+  display: inline-block;
+  padding: 8px 14px;
+  margin: 6px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.08);
+  font-size: 14px;
+}
+
+.hb-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  margin-top: 12px;
+  background: rgba(255,255,255,0.08);
+  color: white;
+  font-size: 15px;
+}
+
+.trend-box {
+  margin-top: 25px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.06);
+}

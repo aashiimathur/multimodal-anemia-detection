@@ -1,70 +1,145 @@
-# Getting Started with Create React App
+# AI-Based Multi-Modal Anemia Detection System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A full-stack AI healthcare application for non-invasive anemia risk screening using:
 
-## Available Scripts
+- Voice Biomarker Analysis
+- Nail Pallor Detection
+- Symptom Assessment
+- Previous Hemoglobin Analysis
 
-In the project directory, you can run:
+The system combines Machine Learning, Signal Processing, Computer Vision, and Multimodal Fusion to generate explainable anemia risk predictions.
 
-### `npm start`
+---
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+# Features
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Voice-Based Analysis
+- Hemoglobin estimation
+- Anemia severity prediction
+- Acoustic biomarker extraction
+- Jitter, Shimmer, HNR, HBAI analysis
 
-### `npm test`
+## Nail Pallor Detection
+- Nail image upload
+- Computer vision-based pallor analysis
+- RGB + HSV feature extraction
+- Nail anemia risk estimation
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Symptom Assessment
+- Fatigue
+- Dizziness
+- Pale Skin
+- Headache
+- Shortness of Breath
 
-### `npm run build`
+## Previous Hb History
+- Previous hemoglobin input
+- Trend analysis
+- Risk adjustment
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Multimodal Fusion
+Combines all modalities into a final anemia risk score.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# Tech Stack
 
-### `npm run eject`
+## Frontend
+- React.js
+- CSS3
+- Axios
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Backend
+- FastAPI
+- Python
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## AI / ML
+- Scikit-learn
+- Librosa
+- Parselmouth
+- OpenCV
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+---
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Machine Learning Models
 
-## Learn More
+| Model | Purpose |
+|---|---|
+| ExtraTreesClassifier | Anemia classification |
+| ExtraTreesRegressor | Hemoglobin estimation |
+| Nail ExtraTreesClassifier | Nail pallor risk |
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+---
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+# Datasets Used
 
-### Code Splitting
+- VOICED Dataset (Voice samples)
+- Nail Anemia Dataset (Nail images + Hb values)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+---
 
-### Analyzing the Bundle Size
+# Installation
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Clone Repository
 
-### Making a Progressive Web App
+```bash
+git clone <your-repo-link>
+cd anemia-detection-addedNail
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+# Backend Setup
 
-### Advanced Configuration
+```bash
+cd anemia-backend
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Create Virtual Environment
 
-### Deployment
+```bash
+python -m venv .venv
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## Activate Virtual Environment (Windows)
 
-### `npm run build` fails to minify
+```bash
+.venv\Scripts\activate
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+## Run Backend Server
+
+```bash
+python -m uvicorn main:app --reload
+```
+
+---
+
+# Frontend Setup
+
+```bash
+cd anemia-frontend
+```
+
+## Install Frontend Dependencies
+
+```bash
+npm install
+```
+
+## Start React Frontend
+
+```bash
+npm start
+```
+
+---
+
+# Disclaimer
+
+This project is intended for educational and research purposes only.
+
+It is **NOT** a replacement for professional medical diagnosis or laboratory testing.

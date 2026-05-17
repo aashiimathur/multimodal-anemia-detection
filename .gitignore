@@ -2,24 +2,20 @@
 __pycache__/
 *.pyc
 .venv/
-venv/
 
 # Node
 node_modules/
 
-# Build
-build/
-dist/
-
-# Environment
-.env
-
-# Audio/temp
-*.wav
-*.mp3
-*.ogg
-*.webm
-
 # OS
 .DS_Store
 Thumbs.db
+
+# Env
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build
+dist/
+build/
