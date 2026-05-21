@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 import numpy as np
 import joblib
 import tempfile
@@ -142,99 +142,203 @@ def extract_nail_features(image_path):
 
 @app.post("/predict")
 async def predict(
-    voice_file: UploadFile = File(...),
+    voice_file: UploadFile = File(None),
     nail_file: UploadFile = File(None),
     symptoms: str = Form("[]"),
     previous_hb: str = Form("")
 ):
 
-    # ---------------- Voice ----------------
-    voice_bytes = await voice_file.read()
-    symptoms_list = json.loads(symptoms)
-    features, jitter, shimmer, hnr, HBAI = extract_features(voice_bytes)
-    pred = clf.predict(features)[0]
-    label = le.inverse_transform([pred])[0]
-    hb = hb_model.predict(features)[0]
-    confidence = float(
-        np.max(clf.predict_proba(features)) * 100
-    )
-    # ---------------- Voice Risk ----------------
-    risk_score = int(((15 - hb) / 9) * 100)
-    risk_score = max(0, min(100, risk_score))
+    # ---------------- Check At Least One Input ----------------
 
-    # ---------------- Nail + Symptoms ----------------
+    if voice_file is None and nail_file is None and symptoms == "[]" and previous_hb == "":
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide at least one input: voice, nail image, symptoms, or previous Hb."
+        )
+
+    # ---------------- Defaults ----------------
+
+    label = "Not Available"
+    hb = None
+    confidence = 0
+    jitter = 0
+    shimmer = 0
+    hnr = 0
+    HBAI = 0
+    voice_risk = 0
+    voice_used = False
+
     nail_risk = 0
+    nail_used = False
+
+    symptom_risk = 0
+    symptoms_list = []
+
+    history_risk = 0
+    hb_trend = "No previous Hb provided"
+    history_used = False
+
+    # ---------------- Symptoms ----------------
+
+    symptoms_list = json.loads(symptoms)
+
+    symptom_weights = {
+        "Fatigue": 20,
+        "Dizziness": 15,
+        "Pale Skin": 25,
+        "Headache": 10,
+        "Shortness of Breath": 30
+    }
+
+    for symptom in symptoms_list:
+        symptom_risk += symptom_weights.get(symptom, 0)
+
+    symptom_risk = min(symptom_risk, 100)
+
+    # ---------------- Voice ----------------
+
+    if voice_file is not None:
+
+        voice_used = True
+
+        voice_bytes = await voice_file.read()
+
+        features, jitter, shimmer, hnr, HBAI = extract_features(voice_bytes)
+
+        pred = clf.predict(features)[0]
+
+        label = le.inverse_transform([pred])[0]
+
+        hb = hb_model.predict(features)[0]
+
+        confidence = float(np.max(clf.predict_proba(features)) * 100)
+
+        voice_risk = int(((15 - hb) / 9) * 100)
+
+        voice_risk = max(0, min(100, voice_risk))
+
+    # ---------------- Nail ----------------
+
     if nail_file is not None:
+
+        nail_used = True
+
         nail_bytes = await nail_file.read()
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".jpg"
-        ) as tmp:
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
             tmp.write(nail_bytes)
             nail_path = tmp.name
-        nail_features = extract_nail_features(nail_path)
-        nail_prob = nail_clf.predict_proba(
-            nail_features
-        )[0][1]
-        nail_risk = nail_prob * 100
-        symptom_weights = {
-            "Fatigue": 20,
-            "Dizziness": 15,
-            "Pale Skin": 25,
-            "Headache": 10,
-            "Shortness of Breath": 30
-        }
-        symptom_risk = 0
-        for symptom in symptoms_list:
-            symptom_risk += symptom_weights.get(symptom, 0)
-        symptom_risk = min(symptom_risk, 100)
-        history_risk = 0
 
-        hb_trend = "No previous Hb provided"
-        if previous_hb != "":
-            try:
-                previous_hb = float(previous_hb)
-                difference = hb - previous_hb
-                # worsening
+        nail_features = extract_nail_features(nail_path)
+
+        nail_prob = nail_clf.predict_proba(nail_features)[0][1]
+
+        nail_risk = float(nail_prob * 100)
+
+    # ---------------- Previous Hb ----------------
+
+    if previous_hb != "":
+
+        history_used = True
+
+        try:
+            previous_hb_value = float(previous_hb)
+
+            if hb is not None:
+
+                difference = hb - previous_hb_value
+
                 if difference < -1:
                     history_risk = 30
                     hb_trend = "Hemoglobin appears to have decreased compared to previous value."
-                # improving
+
                 elif difference > 1:
                     history_risk = 5
                     hb_trend = "Hemoglobin appears to have improved compared to previous value."
+
                 else:
                     history_risk = 15
                     hb_trend = "Hemoglobin appears relatively stable."
-            except:
-                history_risk = 0
-    # ---------------- Final Fusion ----------------
-    final_risk = (
-        risk_score * 0.5 +
-        nail_risk * 0.2 +
-        symptom_risk * 0.2 +
-        history_risk * 0.1
-    )
-    # ---------------- Overall ----------------
+
+            else:
+                if previous_hb_value >= 12:
+                    history_risk = 10
+                    hb_trend = "Previous hemoglobin value appears to be within normal range."
+
+                elif previous_hb_value >= 11:
+                    history_risk = 35
+                    hb_trend = "Previous hemoglobin value suggests mild anemia risk."
+
+                elif previous_hb_value >= 8:
+                    history_risk = 65
+                    hb_trend = "Previous hemoglobin value suggests moderate anemia risk."
+
+                else:
+                    history_risk = 90
+                    hb_trend = "Previous hemoglobin value suggests high anemia risk."
+
+        except:
+            history_risk = 0
+            hb_trend = "Invalid previous Hb value."
+
+    # ---------------- Dynamic Fusion ----------------
+
+    total_weight = 0
+    final_risk = 0
+
+    if voice_used:
+        final_risk += voice_risk * 0.5
+        total_weight += 0.5
+
+    if nail_used:
+        final_risk += nail_risk * 0.2
+        total_weight += 0.2
+
+    if len(symptoms_list) > 0:
+        final_risk += symptom_risk * 0.2
+        total_weight += 0.2
+
+    if history_used:
+        final_risk += history_risk * 0.1
+        total_weight += 0.1
+
+    if total_weight > 0:
+        final_risk = final_risk / total_weight
+    else:
+        final_risk = 0
+
+    # ---------------- Overall Risk ----------------
+
     if final_risk < 30:
         overall_risk = "Low"
+
     elif final_risk < 60:
         overall_risk = "Moderate"
+
     else:
         overall_risk = "High"
-    # ---------------- Return ----------------
 
     return {
         "label": label,
-        "hb": float(hb),
+        "hb": float(hb) if hb is not None else None,
         "confidence": confidence,
+
+        "voice_used": voice_used,
+        "voice_risk": float(voice_risk),
+
+        "nail_used": nail_used,
         "nail_risk": float(nail_risk),
-        "symptom_risk": symptom_risk,
+
+        "symptom_risk": float(symptom_risk),
         "symptoms_used": symptoms_list,
-        "history_risk": history_risk,
+
+        "history_used": history_used,
+        "history_risk": float(history_risk),
         "hb_trend": hb_trend,
+
         "final_risk": float(final_risk),
         "overall_risk": overall_risk,
+
         "jitter": float(jitter),
         "shimmer": float(shimmer),
         "hnr": float(hnr),
